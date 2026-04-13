@@ -43,6 +43,7 @@ class PolicyNetwork(nn.Module):
         self.critic = nn.Linear(hidden_dim, 1)
 
     def forward(self, state: torch.Tensor, hidden: Optional[torch.Tensor] = None):
+        state = torch.nan_to_num(state, nan=0.0, posinf=1e4, neginf=-1e4)
         x = self.backbone(state)
         if self.use_gru:
             x, next_hidden = self.gru(x.unsqueeze(1), hidden)
@@ -67,6 +68,7 @@ class VerifierNetwork(nn.Module):
         )
 
     def forward(self, state: torch.Tensor):
+        state = torch.nan_to_num(state, nan=0.0, posinf=1e4, neginf=-1e4)
         return self.net(state).squeeze(-1)
 
 
@@ -204,6 +206,7 @@ class SequentialEvidenceAdapter(nn.Module):
         top_r: int = 5,
         patch_k: int = 8,
         max_steps: int = 3,
+        state_scale: float = 50.0,
         state_dim: Optional[int] = None,
     ):
         super().__init__()
@@ -215,6 +218,7 @@ class SequentialEvidenceAdapter(nn.Module):
         self.top_r = top_r
         self.patch_k = patch_k
         self.max_steps = max_steps
+        self.state_scale = state_scale
 
         inferred_state_dim = 4 * top_r + 6
         self.state_dim = state_dim or inferred_state_dim
@@ -222,6 +226,12 @@ class SequentialEvidenceAdapter(nn.Module):
         self.policy = PolicyNetwork(self.state_dim)
         self.verifier = VerifierNetwork(self.state_dim)
         self.refine = RefinementHead()
+
+    def _sanitize_state_vector(self, vector: torch.Tensor):
+        vector = torch.nan_to_num(vector, nan=0.0, posinf=1e4, neginf=-1e4)
+        # Keep optimization numerically stable for policy/verifier MLPs.
+        vector = torch.clamp(vector / self.state_scale, min=-20.0, max=20.0)
+        return vector
 
     def _cache_logits(self, image_features: torch.Tensor, class_mask: Optional[torch.Tensor] = None):
         affinity = image_features @ self.cache_keys
@@ -254,7 +264,7 @@ class SequentialEvidenceAdapter(nn.Module):
         top_r_patch = patch_logits.gather(1, top_r_idx)
         top_r_probs = probs.gather(1, top_r_idx)
 
-        vector = torch.cat(
+        raw_vector = torch.cat(
             [
                 top_r_vals,
                 top_r_cache,
@@ -268,6 +278,7 @@ class SequentialEvidenceAdapter(nn.Module):
             ],
             dim=-1,
         )
+        vector = self._sanitize_state_vector(raw_vector)
 
         verifier_score = torch.sigmoid(self.verifier(vector))
         return EvidenceState(
@@ -326,10 +337,16 @@ class SequentialEvidenceAdapter(nn.Module):
             state = self._build_state(clip_logits, cache_logits, patch_logits)
 
             logits, value, hidden = self.policy(state.state_vector, hidden)
+            logits = torch.nan_to_num(logits, nan=0.0, posinf=50.0, neginf=-50.0)
+            value = torch.nan_to_num(value, nan=0.0, posinf=50.0, neginf=-50.0)
             if training:
-                dist = torch.distributions.Categorical(logits=logits)
-                action = dist.sample()
-                log_prob = dist.log_prob(action)
+                if not torch.isfinite(logits).all():
+                    action = torch.zeros((1,), dtype=torch.long, device=logits.device)
+                    log_prob = torch.zeros((1,), dtype=state.state_vector.dtype, device=logits.device)
+                else:
+                    dist = torch.distributions.Categorical(logits=logits)
+                    action = dist.sample()
+                    log_prob = dist.log_prob(action)
             else:
                 action = logits.argmax(dim=-1)
                 log_prob = torch.zeros_like(action, dtype=state.state_vector.dtype)
@@ -397,9 +414,12 @@ class SequentialEvidenceAdapter(nn.Module):
                 action_loss = F.cross_entropy(action_logits, action_label)
                 verifier_loss = F.binary_cross_entropy_with_logits(verifier_logits, verifier_label)
                 loss = action_loss + verifier_loss
+                if not torch.isfinite(loss):
+                    continue
 
                 optimizer.zero_grad()
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(params, max_norm=1.0)
                 optimizer.step()
 
     def train_reinforce(self, train_batches: List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]], epochs: int = 3, lr: float = 1e-4,
@@ -436,8 +456,11 @@ class SequentialEvidenceAdapter(nn.Module):
                     value_loss = value_loss + F.mse_loss(value, reward)
 
                 loss = policy_loss + 0.5 * value_loss
+                if not torch.isfinite(loss):
+                    continue
                 optimizer.zero_grad()
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.policy.parameters(), max_norm=1.0)
                 optimizer.step()
 
     @torch.no_grad()

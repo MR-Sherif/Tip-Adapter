@@ -1,0 +1,23 @@
+{
+  "timestamp_utc": "2026-04-13T11:24:10.838219",
+  "dataset": "aircrafts",
+  "backbone": "RN50",
+  "shots": 16,
+  "seed": 1,
+  "best_beta": 25.365499999999997,
+  "best_alpha": 28.505000000000003,
+  "supervised_checkpoint": "./caches/aircrafts/seq_supervised_16shot.pt",
+  "rl_checkpoint": "./caches/aircrafts/seq_rl_16shot.pt",
+  "results": {
+    "zero_shot_val": 16.92169216921692,
+    "zero_shot_test": 17.04170417041704,
+    "tip_adapter_val": 30.393039303930394,
+    "tip_adapter_test": 30.033003300330034,
+    "fixed_two_stage_val": 21.602160216021602,
+    "fixed_two_stage_test": 20.882088208820882,
+    "supervised_router_val": 17.671767176717672,
+    "supervised_router_test": 17.76177617761776,
+    "sequential_rl_val": 17.671767176717672,
+    "sequential_rl_test": 17.76177617761776
+  }
+}

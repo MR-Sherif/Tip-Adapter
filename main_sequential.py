@@ -170,10 +170,11 @@ def main():
         top_r=cfg.get('seq_top_r', 5),
         patch_k=cfg.get('seq_patch_k', 8),
         max_steps=cfg.get('seq_max_steps', 3),
+        state_scale=cfg.get('seq_state_scale', 50.0),
     ).to(device)
 
     train_batches = build_train_batches(tr_global, tr_patch, tr_labels, batch_size=cfg.get('seq_batch_size', 1))
-    supervised_router.train_imitation(train_batches, epochs=cfg.get('seq_imitation_epochs', 5), lr=cfg.get('seq_imitation_lr', 1e-3))
+    supervised_router.train_imitation(train_batches, epochs=cfg.get('seq_imitation_epochs', 5), lr=cfg.get('seq_imitation_lr', 3e-4))
     results['supervised_router_val'] = evaluate_sequential(supervised_router, va_global, va_patch, va_labels)
     results['supervised_router_test'] = evaluate_sequential(supervised_router, te_global, te_patch, te_labels)
     sup_ckpt = save_checkpoint(supervised_router, cache_dir, f'seq_supervised_{cfg["shots"]}shot')
@@ -188,13 +189,14 @@ def main():
         top_r=cfg.get('seq_top_r', 5),
         patch_k=cfg.get('seq_patch_k', 8),
         max_steps=cfg.get('seq_max_steps', 3),
+        state_scale=cfg.get('seq_state_scale', 50.0),
     ).to(device)
 
     rl_router.load_state_dict(supervised_router.state_dict())
     rl_router.train_reinforce(
         train_batches,
         epochs=cfg.get('seq_rl_epochs', 3),
-        lr=cfg.get('seq_rl_lr', 1e-4),
+        lr=cfg.get('seq_rl_lr', 5e-5),
         reward_alpha=cfg.get('seq_reward_alpha', 0.1),
         reward_beta=cfg.get('seq_reward_beta', 0.1),
         reward_gamma=cfg.get('seq_reward_gamma', 0.002),
