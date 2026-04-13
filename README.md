@@ -46,6 +46,29 @@ We provide Tip-Adapter's **numerical results** in Figure 4 and 5 of the paper at
 
  CLIP-Adapter's numerical results are also updated for comparison.
 
+
+### Sequential Evidence Adapter (experimental)
+This repository now includes an experimental implementation that reframes few-shot CLIP adaptation as sequential evidence verification with a frozen CLIP backbone.
+
+Run it with:
+```bash
+CUDA_VISIBLE_DEVICES=0 python main_sequential.py --config configs/sequential_template.yaml
+```
+
+The pipeline adds three trainable modules outside CLIP only:
+- `PolicyNetwork`: chooses actions over a short horizon (stop, inspect discriminative/ambiguous patches, class-filtered support routing, refinement).
+- `VerifierNetwork`: predicts whether the current top-1 is trustworthy enough to stop.
+- `RefinementHead`: fuses global/cache/local logits via discrete templates.
+- Spatial evidence extraction supports both ViT patch tokens and ResNet spatial tokens (with optional 14x14 upsampling).
+
+Training follows a three-stage recipe:
+1. Heuristic policy target generation.
+2. Supervised imitation warm-start for policy + verifier.
+3. Lightweight REINFORCE with baseline and dense reward.
+
+Current experimental code executes sequential routing per sample (episode-level decision process), so `seq_batch_size: 1` is recommended.
+The script now reports and stores paper-style baselines in one run: zero-shot CLIP, Tip-Adapter (val-searched beta/alpha), fixed two-stage refinement, supervised router (imitation only), and sequential RL router. Results are saved as JSON and model checkpoints under `caches/<dataset>/`.
+
 ### Running
 For ImageNet dataset:
 ```bash
