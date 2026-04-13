@@ -68,7 +68,6 @@ Training follows a three-stage recipe:
 
 Current experimental code executes sequential routing per sample (episode-level decision process), so `seq_batch_size: 1` is recommended.
 The script now reports and stores paper-style baselines in one run: zero-shot CLIP, Tip-Adapter (val-searched beta/alpha), fixed two-stage refinement, supervised router (imitation only), and sequential RL router. Results are saved as JSON and model checkpoints under `caches/<dataset>/`.
-If RL becomes unstable (e.g., NaN policy logits), reduce `seq_imitation_lr` / `seq_rl_lr` and keep state normalization via `seq_state_scale`.
 
 ### Running
 For ImageNet dataset:
