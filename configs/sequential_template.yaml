@@ -1,0 +1,36 @@
+dataset: 'oxford_pets'
+root_path: '/path/to/datasets'
+backbone: 'ViT-B/16'
+shots: 16
+seed: 1
+
+# Tip-Adapter cache
+load_cache: False
+augment_epoch: 10
+
+# Hyperparameter search on val split
+search_hp: True
+search_scale: [7, 3]
+search_step: [200, 20]
+init_beta: 1.0
+init_alpha: 5.0
+
+# Sequential evidence settings
+seq_top_r: 5
+seq_patch_k: 8
+seq_max_steps: 3
+seq_upsample_size: 14
+seq_batch_size: 1
+seq_state_scale: 50.0
+
+# Training schedule
+eval_batch_size: 64
+seq_imitation_epochs: 5
+seq_imitation_lr: 0.0003
+seq_rl_epochs: 3
+seq_rl_lr: 0.00005
+
+# RL reward weights
+seq_reward_alpha: 0.1
+seq_reward_beta: 0.1
+seq_reward_gamma: 0.002
